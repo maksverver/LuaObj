@@ -28,8 +28,7 @@ int main(int argc, const char *argv[])
         lua_rawset(L, -3);
     }
     lua_setglobal(L, "testtable");
-
-    new Test(L);
+    (new Test())->push(L);
     lua_setglobal(L, "start");
 
     if (lua_pcall(L, 0, 0, 0) != 0)

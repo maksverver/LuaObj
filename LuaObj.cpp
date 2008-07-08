@@ -20,6 +20,18 @@ static int invoke_method(lua_State *L)
     return meth->invoke(L, obj);
 }
 
+static int free_object(lua_State *L)
+{
+    if (lua_gettop(L) < 1 || !lua_isuserdata(L, 1))
+    {
+        lua_pushfstring(L, "free_object: missing/incorrect object instance");
+        lua_error(L);
+    }
+    LuaObj* obj = *(LuaObj**)lua_touserdata(L, 1);
+    obj->deref();
+    return 0;
+}
+
 static int lookup_method(lua_State *L)
 {
     int args = lua_gettop(L);
@@ -45,8 +57,6 @@ static int lookup_method(lua_State *L)
     LuaObj *obj = *(LuaObj**)lua_touserdata(L, -2);
     const char *name = lua_tostring(L, -1);
 
-    printf("name=%s\n", name);
-
     LuaMethodBase *meth = obj->get_method(name);
     if (meth == NULL)
     {
@@ -61,14 +71,16 @@ static int lookup_method(lua_State *L)
     return 1;
 }
 
-LuaObj::LuaObj(lua_State *L)
+LuaMethodBase *LuaObj::get_method(const std::string &name) const
 {
-    *(void**)lua_newuserdata(L, sizeof(void*)) = (void*)this;
-    lua_newtable(L);
-    lua_pushstring(L, "__index");
-    lua_pushcfunction(L, lookup_method);
-    lua_rawset(L, -3);
-    lua_setmetatable(L, -2);
+    std::map<std::string, LuaMethodBase *>::const_iterator it;
+    it = methods.find(name);
+    if (it == methods.end()) return NULL;
+    return it->second;
+}
+
+LuaObj::LuaObj() : refcount(0)
+{
 }
 
 LuaObj::~LuaObj()
@@ -87,10 +99,22 @@ void LuaObj::add_method(const std::string &name, LuaMethodBase *method)
     methods[name] = method;
 }
 
-LuaMethodBase *LuaObj::get_method(const std::string &name) const
+void LuaObj::push(lua_State *L)
 {
-    std::map<std::string, LuaMethodBase *>::const_iterator it;
-    it = methods.find(name);
-    if (it == methods.end()) return NULL;
-    return it->second;
+    *(void**)lua_newuserdata(L, sizeof(void*)) = (void*)this;
+    lua_newtable(L);
+    lua_pushstring(L, "__index");
+    lua_pushcfunction(L, lookup_method);
+    lua_rawset(L, -3);
+    lua_pushstring(L, "__gc");
+    lua_pushcfunction(L, free_object);
+    lua_rawset(L, -3);
+    lua_setmetatable(L, -2);
+    refcount += 1;
+}
+
+void LuaObj::deref()
+{
+    refcount -= 1;
+    if (refcount <= 0) delete this;
 }

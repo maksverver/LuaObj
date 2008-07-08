@@ -33,3 +33,8 @@ template<> inline bool get_arg<bool>(lua_State *L, int idx)
     return lua_toboolean(L, idx);
 }
 
+template<> inline LuaObj *get_arg<LuaObj *>(lua_State *L, int idx)
+{
+    void *ud = lua_touserdata(L, idx);
+    return ud ? *(LuaObj**)ud : NULL;
+}

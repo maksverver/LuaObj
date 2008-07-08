@@ -35,3 +35,9 @@ template<> inline int push_res<bool>(lua_State *L, bool const &val)
     lua_pushboolean(L, val);
     return 1;
 }
+
+template<> inline int push_res<LuaObj *>(lua_State *L, LuaObj *const &val)
+{
+    val->push(L);
+    return 1;
+}
